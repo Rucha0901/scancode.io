@@ -532,6 +532,8 @@ class ResourceFilterSet(FilterSetUtilsMixin, django_filters.FilterSet):
         "compliance_alert",
         "in_package",
         "relation_map_type",
+        "is_legal",
+        "is_key_file",
     ]
 
     search = QuerySearchFilter(
@@ -568,6 +570,12 @@ class ResourceFilterSet(FilterSetUtilsMixin, django_filters.FilterSet):
         label="Relation map type",
         field_name="related_from__map_type",
     )
+    is_binary = StrictBooleanFilter()
+    is_text = StrictBooleanFilter()
+    is_archive = StrictBooleanFilter()
+    is_media = StrictBooleanFilter()
+    is_legal = StrictBooleanFilter()
+    is_key_file = StrictBooleanFilter()
     extra_data = django_filters.CharFilter(lookup_expr="icontains")
 
     class Meta:
@@ -754,7 +762,6 @@ class PackageFilterSet(FilterSetUtilsMixin, django_filters.FilterSet):
             "bug_tracking_url",
             "code_view_url",
             "vcs_url",
-            "type",
             "declared_license_expression",
             "declared_license_expression_spdx",
             "other_license_expression",

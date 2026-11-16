@@ -168,6 +168,34 @@ class ScanPipeFilterTest(TestCase):
         filterset = ResourceFilterSet(data=data)
         self.assertEqual([resource2], list(filterset.qs))
 
+    def test_scanpipe_filters_resource_filterset_boolean_filters(self):
+        resource1 = CodebaseResource.objects.create(
+            project=self.project1,
+            path="legal_notice.txt",
+            is_legal=True,
+            is_key_file=True,
+        )
+        resource2 = CodebaseResource.objects.create(
+            project=self.project1,
+            path="binary_file.bin",
+            is_legal=False,
+            is_key_file=False,
+        )
+
+        filterset = ResourceFilterSet(data={"is_legal": ""})
+        self.assertEqual(2, len(filterset.qs))
+        filterset = ResourceFilterSet(data={"is_legal": True})
+        self.assertEqual([resource1], list(filterset.qs))
+        filterset = ResourceFilterSet(data={"is_legal": False})
+        self.assertEqual([resource2], list(filterset.qs))
+
+        filterset = ResourceFilterSet(data={"is_key_file": ""})
+        self.assertEqual(2, len(filterset.qs))
+        filterset = ResourceFilterSet(data={"is_key_file": True})
+        self.assertEqual([resource1], list(filterset.qs))
+        filterset = ResourceFilterSet(data={"is_key_file": False})
+        self.assertEqual([resource2], list(filterset.qs))
+
     def test_scanpipe_filters_params_for_search(self):
         data = {
             "status": "succeed",
