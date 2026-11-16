@@ -21,7 +21,11 @@
 # Visit https://github.com/aboutcode-org/scancode.io for support and download.
 
 
+import json
+
 from django.core.management.base import BaseCommand
+from django.core.serializers.json import DjangoJSONEncoder
+from django.http import QueryDict
 
 from scanpipe.filters import ProjectFilterSet
 from scanpipe.management.commands import RunStatusCommandMixin
@@ -42,15 +46,70 @@ class Command(BaseCommand, RunStatusCommandMixin):
             dest="include_archived",
             help="Include archived projects.",
         )
+        parser.add_argument(
+            "--label",
+            action="append",
+            help="Filter projects by the provided label(s).",
+        )
+        parser.add_argument(
+            "--pipeline",
+            action="append",
+            help="Filter projects by the provided pipeline name(s).",
+        )
+        parser.add_argument(
+            "--limit",
+            type=int,
+            help="Limit the number of displayed results.",
+        )
+        parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output results as JSON.",
+        )
 
     def handle(self, *args, **options):
         verbosity = options["verbosity"]
-        filter_data = {"search": options["search"]}
+        filter_data = QueryDict(mutable=True)
 
-        if options["include_archived"]:
+        if options.get("search"):
+            filter_data["search"] = options["search"]
+
+        if options.get("include_archived"):
             filter_data["is_archived"] = None
 
+        if label := options.get("label"):
+            filter_data.setlist("label", label if isinstance(label, list) else [label])
+
+        if pipeline := options.get("pipeline"):
+            filter_data.setlist(
+                "pipeline", pipeline if isinstance(pipeline, list) else [pipeline]
+            )
+
         projects = ProjectFilterSet(filter_data).qs
+
+        if limit := options.get("limit"):
+            projects = projects[:limit]
+
+        if options["json"]:
+            results = [
+                {
+                    "name": project.name,
+                    "slug": project.slug,
+                    "is_archived": project.is_archived,
+                    "created_date": project.created_date,
+                    "counts": {
+                        "resource_count": project.resource_count,
+                        "package_count": project.package_count,
+                        "dependency_count": project.dependency_count,
+                        "relation_count": project.relation_count,
+                        "message_count": project.message_count,
+                    },
+                }
+                for project in projects
+            ]
+            self.stdout.write(json.dumps(results, indent=2, cls=DjangoJSONEncoder))
+            return
+
         project_count = len(projects)
 
         for index, project in enumerate(projects, start=1):

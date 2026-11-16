@@ -35,6 +35,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.management import CommandError
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.db import connection
 from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
@@ -692,8 +693,10 @@ class ScanPipeManagementCommandTest(TestCase):
         self.assertIn("(addon)", output)
 
     def test_scanpipe_management_command_list_project(self):
-        project1 = make_project(name="project1")
-        project2 = make_project(name="project2")
+        project1 = make_project(
+            name="project1", labels=["label1"], pipelines=["analyze_docker_image"]
+        )
+        project2 = make_project(name="project2", labels=["label2"])
         project3 = make_project(name="archived", is_archived=True)
 
         options = []
@@ -719,6 +722,53 @@ class ScanPipeManagementCommandTest(TestCase):
         self.assertIn(project1.name, output)
         self.assertIn(project2.name, output)
         self.assertIn(project3.name, output)
+
+        if connection.features.supports_json_field_contains:
+            options = ["--label", "label1"]
+            out = StringIO()
+            call_command("list-project", *options, stdout=out)
+            output = out.getvalue()
+            self.assertIn(project1.name, output)
+            self.assertNotIn(project2.name, output)
+
+        options = ["--pipeline", "analyze_docker_image"]
+        out = StringIO()
+        call_command("list-project", *options, stdout=out)
+        output = out.getvalue()
+        self.assertIn(project1.name, output)
+        self.assertNotIn(project2.name, output)
+
+        options = ["--limit", "1"]
+        out = StringIO()
+        call_command("list-project", *options, stdout=out)
+        output = out.getvalue()
+        self.assertIn(project2.name, output)
+        self.assertNotIn(project1.name, output)
+
+        options = ["--json"]
+        out = StringIO()
+        call_command("list-project", *options, stdout=out)
+        data = json.loads(out.getvalue())
+        self.assertEqual(2, len(data))
+        self.assertEqual(project2.name, data[0]["name"])
+        self.assertEqual(project2.slug, data[0]["slug"])
+        self.assertFalse(data[0]["is_archived"])
+        self.assertIn("created_date", data[0])
+        expected_counts = {
+            "resource_count": 0,
+            "package_count": 0,
+            "dependency_count": 0,
+            "relation_count": 0,
+            "message_count": 0,
+        }
+        self.assertEqual(expected_counts, data[0]["counts"])
+
+        options = ["--json", "--limit", "1"]
+        out = StringIO()
+        call_command("list-project", *options, stdout=out)
+        data = json.loads(out.getvalue())
+        self.assertEqual(1, len(data))
+        self.assertEqual(project2.name, data[0]["name"])
 
     def test_scanpipe_management_command_output(self):
         project = make_project(name="my_project")
