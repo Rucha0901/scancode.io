@@ -53,8 +53,26 @@
                     </a>
                   </div>
                 {% endif %}
+                {% if message.details.dependency_uuid %}
+                  <div>
+                    <strong>Dependency</strong>:
+                    <a href="{% url 'dependency_detail' project.slug message.details.dependency_uuid %}" target="_blank">
+                      {{ message.details.dependency_purl|default_if_none:message.details.dependency_uuid }}
+                    </a>
+                  </div>
+                {% endif %}
+                {% if message.details.license_key %}
+                  <div>
+                    <strong>License</strong>:
+                    <a href="{% url 'license_detail' message.details.license_key %}" target="_blank">
+                      {{ message.details.license_key }}
+                    </a>
+                  </div>
+                {% endif %}
                 {% for key, value in message.details.items %}
-                  <strong>{{ key }}</strong>: {{ value }}<br>
+                  {% if key != 'resource_path' and key != 'package_uuid' and key != 'package_url' and key != 'dependency_uuid' and key != 'dependency_purl' and key != 'license_key' and key != 'license_identifier' %}
+                    <strong>{{ key }}</strong>: {{ value }}<br>
+                  {% endif %}
                 {% endfor %}
               </div>
             </td>

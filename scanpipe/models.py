@@ -1388,6 +1388,23 @@ class Project(UUIDPKModel, ExtraDataFieldMixin, UpdateMixin, models.Model):
                 }
             )
 
+        elif isinstance(object_instance, DiscoveredDependency):
+            details.update(
+                {
+                    "dependency_purl": object_instance.purl,
+                    "dependency_uuid": object_instance.uuid,
+                }
+            )
+
+        elif isinstance(object_instance, DiscoveredLicense):
+            details.update(
+                {
+                    "license_key": getattr(object_instance, "key", None)
+                    or getattr(object_instance, "license_expression", ""),
+                    "license_identifier": object_instance.identifier,
+                }
+            )
+
         return ProjectMessage.objects.create(
             project=self,
             severity=severity,
@@ -1850,15 +1867,11 @@ class SaveProjectMessageMixin:
         Create a ProjectMessage record using the provided ``exception`` Exception
         instance.
         """
-        resource = None
-        if isinstance(self, CodebaseResource):
-            resource = self
-
         return self.project.add_error(
             model=self.__class__,
             details=model_to_dict(self),
             exception=exception,
-            object_instance=resource,
+            object_instance=self,
         )
 
     def add_errors(self, exceptions):

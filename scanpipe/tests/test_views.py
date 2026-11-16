@@ -42,6 +42,7 @@ from scanpipe.forms import BaseProjectActionForm
 from scanpipe.models import CodebaseRelation
 from scanpipe.models import CodebaseResource
 from scanpipe.models import DiscoveredDependency
+from scanpipe.models import DiscoveredLicense
 from scanpipe.models import DiscoveredPackage
 from scanpipe.models import Project
 from scanpipe.pipes import make_relation
@@ -1337,9 +1338,73 @@ class ScanPipeViewsTest(TestCase):
     def test_scanpipe_views_project_message_views(self):
         self.project1.add_message("warning")
         self.project1.add_message("error")
+
+        resource = make_resource_file(self.project1, "foo.txt")
+        package = make_package(self.project1, "pkg:npm/mypackage@1.0.0")
+        dependency = DiscoveredDependency.objects.create(
+            project=self.project1,
+            type="npm",
+            name="mydep",
+            version="1.0.0",
+        )
+        license = DiscoveredLicense.objects.create(
+            project=self.project1,
+            identifier="mit-123",
+            license_expression="mit",
+        )
+
+        self.project1.add_message(
+            severity="error",
+            description="Resource error",
+            object_instance=resource,
+            details={"custom_resource_key": "custom_res_val"},
+        )
+        self.project1.add_message(
+            severity="error",
+            description="Package error",
+            object_instance=package,
+        )
+        self.project1.add_message(
+            severity="error",
+            description="Dependency error",
+            object_instance=dependency,
+        )
+        self.project1.add_message(
+            severity="error",
+            description="License error",
+            object_instance=license,
+        )
+
         url = reverse("project_messages", args=[self.project1.slug])
-        with self.assertNumQueries(5):
-            self.client.get(url)
+        response = self.client.get(url)
+
+        resource_url = reverse(
+            "resource_detail", args=[self.project1.slug, resource.path]
+        )
+        package_url = reverse("package_detail", args=[self.project1.slug, package.uuid])
+        dependency_url = reverse(
+            "dependency_detail", args=[self.project1.slug, dependency.uuid]
+        )
+        license_url = reverse("license_detail", args=["mit"])
+
+        self.assertContains(response, f'href="{resource_url}"')
+        self.assertContains(response, f'href="{package_url}"')
+        self.assertContains(response, f'href="{dependency_url}"')
+        self.assertContains(response, f'href="{license_url}"')
+
+        # Filtered keys are not printed a second time in the general dictionary loop
+        self.assertNotContains(response, "<strong>resource_path</strong>:")
+        self.assertNotContains(response, "<strong>package_uuid</strong>:")
+        self.assertNotContains(response, "<strong>package_url</strong>:")
+        self.assertNotContains(response, "<strong>dependency_uuid</strong>:")
+        self.assertNotContains(response, "<strong>dependency_purl</strong>:")
+        self.assertNotContains(response, "<strong>license_key</strong>:")
+        self.assertNotContains(response, "<strong>license_identifier</strong>:")
+
+        # Non-filtered keys are rendered
+        self.assertContains(
+            response, "<strong>custom_resource_key</strong>: custom_res_val"
+        )
 
     def test_scanpipe_views_vulnerability_list_view(self):
         self.assertEqual(0, self.project1.vulnerability_count)

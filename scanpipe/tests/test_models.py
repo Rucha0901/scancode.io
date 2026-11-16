@@ -60,6 +60,7 @@ from scancodeio import __version__ as scancodeio_version
 from scanpipe.models import CodebaseRelation
 from scanpipe.models import CodebaseResource
 from scanpipe.models import DiscoveredDependency
+from scanpipe.models import DiscoveredLicense
 from scanpipe.models import DiscoveredPackage
 from scanpipe.models import DiscoveredPackageScore
 from scanpipe.models import OriginDetermination
@@ -3334,6 +3335,64 @@ class ScanPipeModelsTransactionTest(TransactionTestCase):
         codebase_resource.add_error(Exception("Error1"))
         codebase_resource.add_error(Exception("Error2"))
         self.assertEqual(2, ProjectMessage.objects.count())
+
+    def test_scanpipe_project_model_add_message_dependency(self):
+        project1 = make_project("Analysis")
+        dependency = DiscoveredDependency.objects.create(
+            project=project1,
+            type="npm",
+            name="foo",
+            version="1.0.0",
+        )
+        message = project1.add_message(
+            severity=ProjectMessage.Severity.ERROR,
+            description="Dependency error",
+            object_instance=dependency,
+        )
+        self.assertEqual(dependency.uuid, message.details["dependency_uuid"])
+        self.assertEqual("pkg:npm/foo@1.0.0", message.details["dependency_purl"])
+
+    def test_scanpipe_project_model_add_message_license(self):
+        project1 = make_project("Analysis")
+        license = DiscoveredLicense.objects.create(
+            project=project1,
+            identifier="mit-123",
+            license_expression="mit",
+        )
+        message = project1.add_message(
+            severity=ProjectMessage.Severity.ERROR,
+            description="License error",
+            object_instance=license,
+        )
+        self.assertEqual("mit-123", message.details["license_identifier"])
+        self.assertEqual("mit", message.details["license_key"])
+
+    def test_scanpipe_discovered_dependency_model_add_error(self):
+        project1 = make_project("Analysis")
+        dependency = DiscoveredDependency.objects.create(
+            project=project1,
+            type="npm",
+            name="bar",
+            version="2.0.0",
+        )
+        error = dependency.add_error(Exception("Dep error"))
+        self.assertEqual(error, ProjectMessage.objects.get())
+        self.assertEqual("DiscoveredDependency", error.model)
+        self.assertEqual(dependency.uuid, error.details["dependency_uuid"])
+        self.assertEqual("pkg:npm/bar@2.0.0", error.details["dependency_purl"])
+
+    def test_scanpipe_discovered_license_model_add_error(self):
+        project1 = make_project("Analysis")
+        license = DiscoveredLicense.objects.create(
+            project=project1,
+            identifier="apache-456",
+            license_expression="apache-2.0",
+        )
+        error = license.add_error(Exception("License error"))
+        self.assertEqual(error, ProjectMessage.objects.get())
+        self.assertEqual("DiscoveredLicense", error.model)
+        self.assertEqual("apache-456", error.details["license_identifier"])
+        self.assertEqual("apache-2.0", error.details["license_key"])
 
     @skipIf(connection.vendor == "sqlite", "No max_length constraints on SQLite.")
     def test_scanpipe_project_error_model_save_non_valid_related_object(self):
